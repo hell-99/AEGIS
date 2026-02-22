@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log
+
+# Sensitive — never push private keys
+crypto/keys/dilithium3_private.bin
+crypto/keys/*.bin
+crypto/keys/*.hex
+
+# Large files
+ids-ips/cicids/
+*.pkl
+
+# Temp runtime files
+aegis_votes.json
+aegis_blocked.json
+
+# Audit ledger
+policy-engine/audit_ledger.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/

@@ -1,0 +1,36 @@
+{
+  "policies": [
+    {
+      "id": "POL-001",
+      "name": "ICMP Flood Prevention",
+      "condition": "icmp_packets > 10 in 3s",
+      "action": "BLOCK",
+      "severity": "HIGH",
+      "auto_respond": true
+    },
+    {
+      "id": "POL-002",
+      "name": "SYN Flood Prevention",
+      "condition": "syn_packets > 20 in 5s",
+      "action": "BLOCK",
+      "severity": "CRITICAL",
+      "auto_respond": true
+    },
+    {
+      "id": "POL-003",
+      "name": "Port Scan Detection",
+      "condition": "unique_ports > 15",
+      "action": "ALERT",
+      "severity": "MEDIUM",
+      "auto_respond": false
+    },
+    {
+      "id": "POL-004",
+      "name": "Cross Subnet Zero Trust",
+      "condition": "src_subnet != dst_subnet",
+      "action": "VERIFY",
+      "severity": "LOW",
+      "auto_respond": false
+    }
+  ]
+}

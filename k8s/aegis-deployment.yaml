@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aegis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aegis-api
+  namespace: aegis
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: aegis-api
+  template:
+    metadata:
+      labels:
+        app: aegis-api
+    spec:
+      containers:
+      - name: aegis-api
+        image: python:3.12-slim
+        command: ["python3", "-c", "import http.server; http.server.HTTPServer(('0.0.0.0',8080), http.server.BaseHTTPRequestHandler).serve_forever()"]
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "250m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aegis-api-service
+  namespace: aegis
+spec:
+  selector:
+    app: aegis-api
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aegis-zero-trust
+  namespace: aegis
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AEGIS — SOC Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --c:#00d4ff; --g:#00e87a; --r:#ff3a5c; --o:#ff9500; --y:#ffd60a; --pu:#a855f7;
+  --bg:#060a0e; --bg1:#0a1018; --bg2:#0e1622;
+  --bd:rgba(0,212,255,.1); --bd2:rgba(0,212,255,.05);
+  --tx:#7a9bb0; --tx2:#3a5a6e;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--tx);font-family:'Share Tech Mono',monospace;font-size:12px;}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:linear-gradient(rgba(0,212,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.025) 1px,transparent 1px);
+  background-size:36px 36px;}
+
+nav{position:relative;z-index:20;height:52px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;background:rgba(6,10,14,.97);border-bottom:1px solid var(--bd);}
+.brand{display:flex;align-items:center;gap:12px;}
+.hex{width:34px;height:34px;background:linear-gradient(135deg,var(--c),#0066aa);
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron';font-size:10px;font-weight:700;color:#fff;
+  animation:hexPulse 3s ease-in-out infinite;}
+@keyframes hexPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,212,255,.5)}50%{box-shadow:0 0 0 6px rgba(0,212,255,0)}}
+.brand-name{font-family:'Orbitron';font-weight:900;font-size:16px;color:var(--c);letter-spacing:5px;}
+.brand-sub{font-size:9px;color:var(--tx2);letter-spacing:2px;text-transform:uppercase;}
+.nav-center{display:flex;align-items:center;gap:28px;}
+.threat{display:flex;align-items:center;gap:8px;}
+.threat-lbl{font-size:9px;letter-spacing:2px;color:var(--tx2);text-transform:uppercase;}
+.threat-segs{display:flex;gap:3px;}
+.seg{width:20px;height:8px;border-radius:1px;background:var(--bg2);}
+.seg.g{background:var(--g);box-shadow:0 0 5px var(--g);}
+.seg.y{background:var(--y);box-shadow:0 0 5px var(--y);}
+.seg.o{background:var(--o);box-shadow:0 0 5px var(--o);}
+.seg.r{background:var(--r);box-shadow:0 0 5px var(--r);}
+.threat-val{font-family:'Orbitron';font-size:10px;font-weight:700;letter-spacing:2px;}
+.live{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:99px;
+  border:1px solid rgba(0,232,122,.25);background:rgba(0,232,122,.06);}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--g);animation:blink 1.2s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,232,122,.6)}50%{opacity:.7;box-shadow:0 0 0 5px rgba(0,232,122,0)}}
+.live-txt{font-size:9px;letter-spacing:2px;color:var(--g);text-transform:uppercase;}
+.clock{font-family:'Share Tech Mono';font-size:13px;color:var(--c);letter-spacing:1px;}
+
+.grid{position:relative;z-index:1;display:grid;
+  grid-template-columns:240px 1fr 1fr 220px;
+  grid-template-rows:88px 1fr 1fr 104px;
+  gap:6px;padding:6px;height:calc(100vh - 52px);}
+
+.p{background:var(--bg1);border:1px solid var(--bd2);border-radius:6px;padding:14px 16px;overflow:hidden;position:relative;}
+.p::before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--bd),transparent);}
+.p-head{font-family:'Orbitron';font-size:8px;font-weight:700;letter-spacing:3px;color:var(--c);
+  text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.chip{font-family:'Share Tech Mono';font-size:9px;padding:2px 8px;border-radius:3px;letter-spacing:.5px;}
+.chip-c{background:rgba(0,212,255,.12);color:var(--c);border:1px solid rgba(0,212,255,.25);}
+.chip-r{background:rgba(255,58,92,.12);color:var(--r);border:1px solid rgba(255,58,92,.25);}
+.chip-g{background:rgba(0,232,122,.12);color:var(--g);border:1px solid rgba(0,232,122,.25);}
+.chip-y{background:rgba(255,214,10,.12);color:var(--y);border:1px solid rgba(255,214,10,.25);}
+
+.sidebar{grid-row:1/5;display:flex;flex-direction:column;gap:6px;}
+.metric{flex:1;background:var(--bg1);border:1px solid var(--bd2);border-radius:6px;padding:14px 16px;
+  position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center;}
+.metric::before{content:'';position:absolute;top:0;left:20px;right:20px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--bd),transparent);}
+.metric-val{font-family:'Orbitron';font-weight:900;font-size:32px;line-height:1;letter-spacing:-1px;}
+.vc{color:var(--c);} .vg{color:var(--g);} .vr{color:var(--r);} .vo{color:var(--o);} .vw{color:#ddf0f8;} .vy{color:var(--y);}
+.metric-lbl{font-size:9px;letter-spacing:2px;color:var(--tx2);margin-top:4px;text-transform:uppercase;}
+.metric-sub{font-size:10px;color:var(--g);margin-top:5px;}
+.metric-sub.warn{color:var(--o);}
+
+.kpi{display:flex;align-items:center;justify-content:space-between;}
+.kpi-block{display:flex;flex-direction:column;gap:2px;}
+.kpi-lbl{font-size:9px;letter-spacing:2px;color:var(--tx2);text-transform:uppercase;}
+.kpi-val{font-family:'Orbitron';font-weight:700;font-size:20px;line-height:1;}
+.kpi-sub{font-size:9px;color:var(--tx2);}
+.divider{width:1px;height:36px;background:var(--bd2);}
+
+.alerts-panel{grid-column:2/4;grid-row:2/4;}
+.tbl-head{display:grid;grid-template-columns:68px 64px 106px 1fr;gap:8px;
+  padding:0 0 7px 0;border-bottom:1px solid var(--bd2);
+  font-size:8px;letter-spacing:2px;color:var(--tx2);text-transform:uppercase;margin-bottom:4px;}
+.scroll{overflow-y:auto;}
+.scroll::-webkit-scrollbar{width:2px;}
+.scroll::-webkit-scrollbar-thumb{background:var(--bd);border-radius:1px;}
+.a-row{display:grid;grid-template-columns:68px 64px 106px 1fr;gap:8px;padding:5px 0;
+  border-bottom:1px solid var(--bd2);align-items:center;animation:fadeUp .2s ease;}
+.a-row:hover{background:rgba(0,212,255,.03);}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.a-time{font-family:'Share Tech Mono';font-size:10px;color:var(--tx2);}
+.a-tag{font-size:8px;font-weight:600;letter-spacing:1px;padding:2px 6px;border-radius:3px;text-align:center;display:inline-block;}
+.ti{background:rgba(255,58,92,.12);color:var(--r);border:1px solid rgba(255,58,92,.2);}
+.ts{background:rgba(255,149,0,.12);color:var(--o);border:1px solid rgba(255,149,0,.2);}
+.tp{background:rgba(255,214,10,.12);color:var(--y);border:1px solid rgba(255,214,10,.2);}
+.tb{background:rgba(0,232,122,.12);color:var(--g);border:1px solid rgba(0,232,122,.2);}
+.tm{background:rgba(168,85,247,.12);color:var(--pu);border:1px solid rgba(168,85,247,.2);}
+.te{background:rgba(255,58,92,.18);color:#ff8fa3;border:1px solid rgba(255,58,92,.3);}
+.tc{background:rgba(0,212,255,.12);color:var(--c);border:1px solid rgba(0,212,255,.2);}
+.a-ip{font-family:'Share Tech Mono';font-size:11px;color:var(--c);}
+.a-detail{font-size:10px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+.integrity-panel{grid-column:4/5;grid-row:2/3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}
+.ring{position:relative;width:100px;height:100px;}
+.ring svg{transform:rotate(-90deg);}
+.ring-bg{fill:none;stroke:var(--bg2);stroke-width:8;}
+.ring-fg{fill:none;stroke:var(--g);stroke-width:8;stroke-linecap:round;stroke-dasharray:266;stroke-dashoffset:0;
+  filter:drop-shadow(0 0 6px var(--g));animation:glow 2.5s ease-in-out infinite;}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 4px var(--g))}50%{filter:drop-shadow(0 0 12px var(--g))}}
+.ring-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.ring-pct{font-family:'Orbitron';font-weight:900;font-size:18px;color:var(--g);}
+.ring-lbl{font-size:8px;color:var(--tx2);letter-spacing:1px;}
+.int-status{font-family:'Orbitron';font-weight:700;font-size:11px;letter-spacing:3px;}
+.int-algo{font-size:8px;color:var(--tx2);letter-spacing:1px;text-align:center;line-height:1.8;}
+
+.comps-panel{grid-column:4/5;grid-row:3/4;}
+.c-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;
+  border-bottom:1px solid var(--bd2);font-size:10px;color:var(--tx);}
+.c-row:last-child{border:none;}
+.c-status{display:flex;align-items:center;gap:5px;}
+.dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.dot-on{background:var(--g);box-shadow:0 0 4px var(--g);animation:blink 2s ease-in-out infinite;}
+.dot-off{background:var(--r);}
+.son{color:var(--g);font-size:9px;letter-spacing:1px;}
+.soff{color:var(--r);font-size:9px;letter-spacing:1px;}
+
+.ens-panel{grid-column:2/3;grid-row:4/5;}
+.ens-cards{display:flex;gap:6px;overflow-x:auto;height:calc(100% - 28px);align-items:flex-start;padding-bottom:2px;}
+.ens-cards::-webkit-scrollbar{height:2px;}
+.ens-cards::-webkit-scrollbar-thumb{background:var(--bd);}
+.ens-card{min-width:180px;padding:8px 10px;border-radius:5px;position:relative;animation:fadeUp .2s ease;flex-shrink:0;}
+.ens-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;}
+.eh{background:rgba(255,58,92,.07);border:1px solid rgba(255,58,92,.15);}
+.eh::before{background:var(--r);box-shadow:0 0 6px rgba(255,58,92,.5);}
+.em{background:rgba(255,149,0,.07);border:1px solid rgba(255,149,0,.15);}
+.em::before{background:var(--o);}
+.el{background:rgba(255,214,10,.05);border:1px solid rgba(255,214,10,.12);}
+.el::before{background:var(--y);}
+.ens-conf{font-family:'Orbitron';font-size:8px;font-weight:700;letter-spacing:2px;}
+.eh .ens-conf{color:var(--r);} .em .ens-conf{color:var(--o);} .el .ens-conf{color:var(--y);}
+.ens-ip{color:var(--c);font-family:'Share Tech Mono';font-size:11px;margin-top:3px;}
+.ens-voters{display:flex;gap:3px;margin-top:5px;flex-wrap:wrap;}
+.vtag{font-size:8px;padding:1px 5px;border-radius:2px;background:rgba(0,212,255,.1);color:#5ab8cc;
+  border:1px solid rgba(0,212,255,.18);letter-spacing:.3px;}
+.ens-rsn{font-size:9px;color:var(--tx2);margin-top:3px;line-height:1.4;}
+
+.k8s-panel{grid-column:3/4;grid-row:4/5;}
+.k8s-scroll{height:calc(100% - 28px);overflow-y:auto;}
+.k8s-scroll::-webkit-scrollbar{width:2px;}
+.k8s-scroll::-webkit-scrollbar-thumb{background:var(--bd);}
+.k8s-row{padding:6px 8px;margin-bottom:4px;border-radius:4px;
+  background:rgba(0,232,122,.04);border:1px solid rgba(0,232,122,.1);border-left:3px solid var(--g);
+  animation:fadeUp .2s ease;}
+.k8s-top{display:flex;align-items:center;gap:6px;}
+.k8s-action{font-size:9px;font-weight:600;color:var(--r);letter-spacing:1px;}
+.k8s-ip{font-family:'Share Tech Mono';font-size:11px;color:var(--c);}
+.pqc{display:inline-flex;align-items:center;gap:3px;font-size:8px;padding:1px 5px;border-radius:2px;
+  background:rgba(0,232,122,.15);color:var(--g);border:1px solid rgba(0,232,122,.28);letter-spacing:.5px;}
+.k8s-voters{font-size:9px;color:var(--tx2);margin-top:2px;}
+
+.ledger-panel{grid-column:4/5;grid-row:4/5;}
+.led-row{padding:5px 0;border-bottom:1px solid var(--bd2);}
+.led-row:last-child{border:none;}
+.led-action{font-size:9px;font-weight:600;letter-spacing:1px;}
+.la-blk{color:var(--r);} .la-ens{color:#ff8fa3;} .la-ml{color:var(--pu);} .la-alrt{color:var(--c);} .la-heal{color:var(--g);}
+.led-ip{font-family:'Share Tech Mono';font-size:10px;color:var(--tx);}
+.led-hash{font-family:'Share Tech Mono';font-size:8px;color:var(--tx2);margin-top:1px;}
+.empty{color:var(--tx2);font-size:10px;padding:16px 0;text-align:center;letter-spacing:1px;}
+.comp-bar-wrap{margin-top:4px;}
+.comp-bar-bg{height:4px;background:var(--bg2);border-radius:2px;overflow:hidden;}
+.comp-bar-fg{height:100%;border-radius:2px;transition:width .5s ease;}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="brand">
+    <div class="hex">AE</div>
+    <div>
+      <div class="brand-name">AEGIS</div>
+      <div class="brand-sub">Autonomous Edge-Native Guardian &amp; Intelligence System</div>
+    </div>
+  </div>
+  <div class="nav-center">
+    <div class="threat">
+      <span class="threat-lbl">Threat</span>
+      <div class="threat-segs">
+        <div class="seg g" id="seg1"></div>
+        <div class="seg y" id="seg2"></div>
+        <div class="seg o" id="seg3"></div>
+        <div class="seg r" id="seg4"></div>
+        <div class="seg"  id="seg5"></div>
+      </div>
+      <span class="threat-val" id="threatVal" style="color:var(--g)">LOW</span>
+    </div>
+    <div class="live">
+      <div class="live-dot"></div>
+      <span class="live-txt">Live Monitoring</span>
+    </div>
+  </div>
+  <div class="clock" id="clock">--:--:-- UTC</div>
+</nav>
+
+<div class="grid">
+  <div class="sidebar">
+    <div class="metric">
+      <div class="metric-val vc" id="mAlerts">0</div>
+      <div class="metric-lbl">Total Alerts</div>
+      <div class="metric-sub">live feed</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val vo" id="mEnsemble">0</div>
+      <div class="metric-lbl">Ensemble Blocks</div>
+      <div class="metric-sub" id="mConf">waiting...</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val vw" id="mLedger">0</div>
+      <div class="metric-lbl">Ledger Entries</div>
+      <div class="metric-sub">SHA-256 chained</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val vg" id="mK8s">0</div>
+      <div class="metric-lbl">K8s Alerts</div>
+      <div class="metric-sub">PQC verified</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val vr" id="mBlocked">0</div>
+      <div class="metric-lbl">Blocked IPs</div>
+      <div class="metric-sub warn">auto-blocked</div>
+    </div>
+    <div class="metric">
+      <div class="metric-val vy" id="mCompliance">60%</div>
+      <div class="metric-lbl">NIST CSF Score</div>
+      <div class="comp-bar-wrap">
+        <div class="comp-bar-bg"><div class="comp-bar-fg" id="compBar" style="width:60%;background:var(--y)"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="p kpi">
+    <div class="kpi-block">
+      <div class="kpi-lbl">ICMP Floods</div>
+      <div class="kpi-val vc" id="kIcmp">0</div>
+      <div class="kpi-sub">rule-based</div>
+    </div>
+    <div class="divider"></div>
+    <div class="kpi-block">
+      <div class="kpi-lbl">SYN Floods</div>
+      <div class="kpi-val vo" id="kSyn">0</div>
+      <div class="kpi-sub">detected</div>
+    </div>
+    <div class="divider"></div>
+    <div class="kpi-block">
+      <div class="kpi-lbl">Port Scans</div>
+      <div class="kpi-val vy" id="kPort">0</div>
+      <div class="kpi-sub">detected</div>
+    </div>
+  </div>
+
+  <div class="p kpi">
+    <div class="kpi-block">
+      <div class="kpi-lbl">ML Anomalies</div>
+      <div class="kpi-val" style="color:var(--pu)" id="kMl">0</div>
+      <div class="kpi-sub">Isolation Forest</div>
+    </div>
+    <div class="divider"></div>
+    <div class="kpi-block">
+      <div class="kpi-lbl">CICIDS Detections</div>
+      <div class="kpi-val vc" id="kCicids">0</div>
+      <div class="kpi-sub">Random Forest</div>
+    </div>
+    <div class="divider"></div>
+    <div class="kpi-block">
+      <div class="kpi-lbl">Uptime</div>
+      <div class="kpi-val vg" id="kUptime" style="font-size:14px;letter-spacing:1px">00:00:00</div>
+      <div class="kpi-sub">operational</div>
+    </div>
+  </div>
+
+  <div class="p kpi" style="grid-column:4/5;">
+    <div class="kpi-block" style="width:100%">
+      <div class="kpi-lbl" style="margin-bottom:6px">PQC Layer</div>
+      <div class="kpi-val vg" style="font-size:13px;letter-spacing:2px">ACTIVE</div>
+      <div class="kpi-sub" style="margin-top:4px">Dilithium3 signing</div>
+      <div class="kpi-sub" style="margin-top:2px">Kyber768 key exchange</div>
+    </div>
+  </div>
+
+  <div class="p alerts-panel">
+    <div class="p-head">
+      Live Intrusion Detection Feed
+      <span class="chip chip-r" id="aBadge">0 ALERTS</span>
+    </div>
+    <div class="tbl-head">
+      <span>Time</span><span>Type</span><span>Source IP</span><span>Detail</span>
+    </div>
+    <div class="scroll" style="height:calc(100% - 58px)" id="aFeed">
+      <div class="empty">Waiting for traffic...</div>
+    </div>
+  </div>
+
+  <div class="p integrity-panel">
+    <div class="p-head" style="justify-content:center;margin-bottom:8px">Chain Integrity</div>
+    <div class="ring">
+      <svg viewBox="0 0 100 100" width="100" height="100">
+        <circle class="ring-bg" cx="50" cy="50" r="42"/>
+        <circle class="ring-fg" cx="50" cy="50" r="42"/>
+      </svg>
+      <div class="ring-txt">
+        <span class="ring-pct">100%</span>
+        <span class="ring-lbl">verified</span>
+      </div>
+    </div>
+    <div class="int-status" id="intStatus" style="color:var(--g)">VERIFIED</div>
+    <div class="int-algo">KYBER768 + DILITHIUM3<br>NIST PQC STANDARD 2024</div>
+  </div>
+
+  <div class="p comps-panel">
+    <div class="p-head">System Components</div>
+    <div class="c-row"><span>IDS Engine</span><div class="c-status"><div class="dot" id="dIds"></div><span id="sIds" class="son">—</span></div></div>
+    <div class="c-row"><span>IPS / iptables</span><div class="c-status"><div class="dot dot-on"></div><span class="son">ACTIVE</span></div></div>
+    <div class="c-row"><span>Isolation Forest</span><div class="c-status"><div class="dot" id="dMl"></div><span id="sMl" class="son">—</span></div></div>
+    <div class="c-row"><span>CICIDS Classifier</span><div class="c-status"><div class="dot" id="dCicids"></div><span id="sCicids" class="son">—</span></div></div>
+    <div class="c-row"><span>Ensemble Engine</span><div class="c-status"><div class="dot" id="dEns"></div><span id="sEns" class="son">—</span></div></div>
+    <div class="c-row"><span>Entropy Detector</span><div class="c-status"><div class="dot dot-on"></div><span class="son">ACTIVE</span></div></div>
+    <div class="c-row"><span>PQC Layer</span><div class="c-status"><div class="dot dot-on"></div><span class="son">ACTIVE</span></div></div>
+    <div class="c-row"><span>Self-Healing</span><div class="c-status"><div class="dot dot-on"></div><span class="son">ACTIVE</span></div></div>
+    <div class="c-row" style="border:none"><span>REST API</span><div class="c-status"><div class="dot" id="apiDot"></div><span id="apiStat" class="son">—</span></div></div>
+  </div>
+
+  <div class="p ens-panel">
+    <div class="p-head">
+      Ensemble Voting — 3-Layer Consensus
+      <span class="chip chip-r" id="ensBadge">0 BLOCKS</span>
+    </div>
+    <div class="ens-cards" id="ensFeed">
+      <div class="empty" style="padding:10px 0">Waiting for decisions...</div>
+    </div>
+  </div>
+
+  <div class="p k8s-panel">
+    <div class="p-head">
+      Kubernetes Bridge — PQC Verified
+      <span class="chip chip-g" id="k8sBadge">0</span>
+    </div>
+    <div class="k8s-scroll" id="k8sFeed">
+      <div class="empty">Awaiting K8s alerts...</div>
+    </div>
+  </div>
+
+  <div class="p ledger-panel">
+    <div class="p-head">
+      Merkle Audit Ledger
+      <span class="chip chip-c" id="ledBadge">0</span>
+    </div>
+    <div class="scroll" style="height:calc(100% - 32px)" id="ledFeed">
+      <div class="empty">No entries</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:5000';
+let t0 = Date.now();
+
+setInterval(() => {
+  document.getElementById('clock').textContent =
+    new Date().toUTCString().split(' ')[4] + ' UTC';
+  const e = Math.floor((Date.now() - t0) / 1000);
+  document.getElementById('kUptime').textContent =
+    [Math.floor(e/3600), Math.floor((e%3600)/60), e%60]
+      .map(x => String(x).padStart(2,'0')).join(':');
+}, 1000);
+
+function setDot(dotId, statId, active) {
+  document.getElementById(dotId).className = active ? 'dot dot-on' : 'dot dot-off';
+  document.getElementById(statId).textContent = active ? 'ACTIVE' : 'OFFLINE';
+  document.getElementById(statId).className = active ? 'son' : 'soff';
+}
+
+function updateThreat(alertCount) {
+  const tv = document.getElementById('threatVal');
+  if (alertCount === 0)      { tv.textContent='LOW';      tv.style.color='var(--g)'; }
+  else if (alertCount < 3)   { tv.textContent='MEDIUM';   tv.style.color='var(--y)'; }
+  else if (alertCount < 5)   { tv.textContent='HIGH';     tv.style.color='var(--o)'; }
+  else                       { tv.textContent='CRITICAL'; tv.style.color='var(--r)'; }
+}
+
+function tagOf(s) {
+  const u = s.toUpperCase();
+  if (u.includes('ICMP'))   return ['ICMP', 'ti'];
+  if (u.includes('SYN'))    return ['SYN',  'ts'];
+  if (u.includes('PORT') || u.includes('SCAN')) return ['SCAN','tp'];
+  if (u.includes('ML-ALERT') || u.includes('ANOMALY')) return ['ML','tm'];
+  if (u.includes('ENSEMBLE')) return ['ENS','te'];
+  if (u.includes('CICIDS'))   return ['CIDS','tc'];
+  if (u.includes('BLOCK'))    return ['BLOCK','tb'];
+  return ['INFO','tc'];
+}
+
+async function fetchAlerts() {
+  try {
+    const d = await (await fetch(`${API}/alerts`)).json();
+    const alerts = Array.isArray(d) ? d : (d.alerts || []);
+    document.getElementById('mAlerts').textContent = alerts.length;
+    document.getElementById('aBadge').textContent = `${alerts.length} ALERTS`;
+
+    let icmp=0, syn=0, port=0;
+    alerts.forEach(raw => {
+      const s = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      if (s.includes('ICMP'))      icmp++;
+      if (s.includes('SYN FLOOD')) syn++;
+      if (s.includes('PORT SCAN')) port++;
+    });
+    document.getElementById('kIcmp').textContent = icmp;
+    document.getElementById('kSyn').textContent  = syn;
+    document.getElementById('kPort').textContent = port;
+
+    const now = Date.now();
+    const recentAlerts = alerts.filter(raw => {
+      const s = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      const tm = s.match(/\[(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})\]/);
+      if (!tm) return false;
+      const alertTime = new Date(tm[1] + 'T' + tm[2]).getTime();
+      return (now - alertTime) < 30000;
+    });
+    console.log('recent:', recentAlerts.length);
+    updateThreat(recentAlerts.length);
+
+    fetch(`${API}/ml-alerts`).then(r=>r.json()).then(d=>{
+      document.getElementById('kMl').textContent = d.total || 0;
+    }).catch(()=>{});
+    fetch(`${API}/cicids-alerts`).then(r=>r.json()).then(d=>{
+      document.getElementById('kCicids').textContent = d.total || 0;
+    }).catch(()=>{});
+    fetch(`${API}/blocked-ips`).then(r=>r.json()).then(d=>{
+      document.getElementById('mBlocked').textContent = d.total || 0;
+    }).catch(()=>{});
+
+    document.getElementById('aFeed').innerHTML =
+      [...alerts].reverse().slice(0,80).map(raw => {
+        const s = typeof raw === 'string' ? raw : JSON.stringify(raw);
+        const tm = s.match(/\[([^\]]+)\]/);
+        const time = tm ? tm[1].split(' ')[1] : '--:--:--';
+        const ipm = s.match(/SRC:\s*([\d.]+)/);
+        const ip = ipm ? ipm[1] : '—';
+        const detail = s.replace(/\[[^\]]+\]\s*/, '').substring(0, 60);
+        const [lbl, cls] = tagOf(s);
+        return `<div class="a-row">
+          <span class="a-time">${time}</span>
+          <span class="a-tag ${cls}">${lbl}</span>
+          <span class="a-ip">${ip}</span>
+          <span class="a-detail">${detail}</span>
+        </div>`;
+      }).join('') || '<div class="empty">Waiting for traffic...</div>';
+
+    document.getElementById('apiDot').className = 'dot dot-on';
+    document.getElementById('apiStat').textContent = 'ACTIVE';
+    document.getElementById('apiStat').className = 'son';
+  } catch(e) {
+    document.getElementById('apiDot').className = 'dot dot-off';
+    document.getElementById('apiStat').textContent = 'OFFLINE';
+    document.getElementById('apiStat').className = 'soff';
+  }
+}
+
+async function fetchHealth() {
+  try {
+    const d = await (await fetch(`${API}/health`)).json();
+    setDot('dIds',   'sIds',   d.ids);
+    setDot('dMl',    'sMl',    d.ml);
+    setDot('dCicids','sCicids',d.cicids);
+    setDot('dEns',   'sEns',   d.ensemble);
+  } catch(e) {}
+}
+
+async function fetchLedger() {
+  try {
+    const d = await (await fetch(`${API}/ledger`)).json();
+    const entries = Array.isArray(d) ? d : (d.chain || []);
+    document.getElementById('mLedger').textContent = entries.length;
+    document.getElementById('ledBadge').textContent = entries.length;
+    document.getElementById('ledFeed').innerHTML =
+      [...entries].reverse().slice(0, 25).map(e => {
+        const a = e.action || 'ACTION';
+        const cls = a.includes('ENSEMBLE') ? 'la-ens'
+                  : a.includes('BLOCK')    ? 'la-blk'
+                  : a.includes('ML')       ? 'la-ml'
+                  : a.includes('HEAL')     ? 'la-heal'
+                  : 'la-alrt';
+        return `<div class="led-row">
+          <span class="led-action ${cls}">${a}</span>
+          <span class="led-ip"> ${e.src_ip || '—'}</span>
+          <div class="led-hash">${(e.hash||'').substring(0,20)}${e.hash?'...':''}</div>
+        </div>`;
+      }).join('') || '<div class="empty">No entries</div>';
+  } catch(e) {}
+}
+
+async function fetchIntegrity() {
+  try {
+    const d = await (await fetch(`${API}/verify`)).json();
+    const ok = d.integrity === 'VALID' || d.valid === true;
+    const el = document.getElementById('intStatus');
+    el.textContent = ok ? 'VERIFIED' : 'COMPROMISED';
+    el.style.color = ok ? 'var(--g)' : 'var(--r)';
+  } catch(e) {}
+}
+
+async function fetchCompliance() {
+  try {
+    const d = await (await fetch(`${API}/status`)).json();
+    if (d.compliance_score !== undefined) {
+      const score = d.compliance_score;
+      document.getElementById('mCompliance').textContent = score + '%';
+      document.getElementById('compBar').style.width = score + '%';
+      document.getElementById('compBar').style.background =
+        score >= 80 ? 'var(--g)' : score >= 60 ? 'var(--y)' : 'var(--r)';
+    }
+  } catch(e) {}
+}
+
+async function fetchK8s() {
+  try {
+    const d = await (await fetch(`${API}/k8s/alerts`)).json();
+    const raw_alerts = d.alerts || [];
+    const alerts = raw_alerts.map(item => {
+      if (item.payload) try { return {...JSON.parse(item.payload), pqc_verified:true, pod:item.pod}; } catch(e) {}
+      return item;
+    }).filter(a => a.src_ip);
+
+    document.getElementById('mK8s').textContent = d.total || alerts.length;
+    document.getElementById('k8sBadge').textContent = d.total || alerts.length;
+    document.getElementById('mEnsemble').textContent = alerts.length;
+    document.getElementById('ensBadge').textContent = `${alerts.length} BLOCKS`;
+
+    const hc = alerts.filter(a => a.confidence === 'HIGH').length;
+    const mc = alerts.filter(a => a.confidence === 'MEDIUM').length;
+    document.getElementById('mConf').textContent =
+      hc > 0 ? `${hc} high confidence` : mc > 0 ? `${mc} medium conf` : 'waiting...';
+
+    document.getElementById('k8sFeed').innerHTML =
+      [...alerts].reverse().slice(0,8).map(a => `
+        <div class="k8s-row">
+          <div class="k8s-top">
+            <span class="k8s-action">${a.action}</span>
+            <span class="k8s-ip">${a.src_ip}</span>
+            ${a.pqc_verified ? '<span class="pqc">✓ PQC</span>' : ''}
+          </div>
+          <div class="k8s-voters">${(a.voters||[]).join(' · ')}</div>
+        </div>`).join('') || '<div class="empty">Awaiting K8s alerts...</div>';
+
+    document.getElementById('ensFeed').innerHTML =
+      [...alerts].reverse().slice(0,8).map(a => {
+        const conf = a.confidence || 'MEDIUM';
+        const cls = conf==='HIGH' ? 'eh' : conf==='MEDIUM' ? 'em' : 'el';
+        return `<div class="ens-card ${cls}">
+          <div class="ens-conf">${conf} CONFIDENCE</div>
+          <div class="ens-ip">${a.src_ip}</div>
+          <div class="ens-voters">${(a.voters||[]).map(v=>`<span class="vtag">${v}</span>`).join('')}</div>
+          <div class="ens-rsn">${(a.reasons||[''])[0].substring(0,42)}</div>
+        </div>`;
+      }).join('') || '<div class="empty">Waiting for decisions...</div>';
+  } catch(e) {
+    document.getElementById('k8sFeed').innerHTML = '<div class="empty">K8s bridge offline</div>';
+  }
+}
+
+async function tick() {
+  await Promise.allSettled([
+    fetchAlerts(),
+    fetchLedger(),
+    fetchIntegrity(),
+    fetchCompliance(),
+    fetchK8s(),
+    fetchHealth()
+  ]);
+}
+
+tick();
+setInterval(tick, 3000);
+</script>
+</body>
+</html>

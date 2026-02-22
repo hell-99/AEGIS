@@ -1,0 +1,12 @@
+{
+  "generated": "2026-02-19 23:39:07",
+  "total_events": 778,
+  "nist_csf_coverage": {
+    "IDENTIFY": 1,
+    "PROTECT": 0,
+    "DETECT": 775,
+    "RESPOND": 1,
+    "RECOVER": 0
+  },
+  "compliance_score": 60
+}
