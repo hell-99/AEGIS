@@ -203,6 +203,60 @@ Live cyberpunk-aesthetic dashboard — intrusion feed, ensemble voting panel, Ku
 
 ---
 
+## XDR — Extended Detection & Response
+
+AEGIS includes a cross-domain correlation engine that unifies signals from three independent security layers. When 2+ sources detect threats within the same time window, a CRITICAL correlated incident is fired automatically.
+
+### What gets correlated
+
+| Source | What AEGIS reads | Threat types |
+|---|---|---|
+| **AEGIS** | Audit ledger + IDS alert log | Network floods, port scans, ensemble blocks |
+| **IRIS** | `/api/detections`, `/api/collusion`, `/api/events` | Prompt injection, cross-agent collusion, high-risk tool calls |
+| **AWS Scanner** | `findings.json` output | IAM/S3/VPC/EC2 misconfigurations |
+
+### Why this matters
+
+A sophisticated attacker might simultaneously:
+- Probe the network (AEGIS detects SYN flood / port scan)
+- Manipulate an LLM agent to exfiltrate data (IRIS detects divergence / blocked tool call)
+- Exploit an open S3 bucket left exposed (AWS Scanner flags it)
+
+Each tool sees one piece. The XDR correlator sees all three and fires a single unified CRITICAL case — something no individual tool can do.
+
+### Running the correlator
+
+```bash
+# Single check
+python3 xdr/correlator.py
+
+# Continuous daemon (polls every 30s)
+python3 xdr/correlator.py --daemon
+
+# Custom window and interval
+python3 xdr/correlator.py --daemon --window 10 --interval 60
+```
+
+Configure in `.env`:
+```
+IRIS_API_URL=http://localhost:8000
+XDR_WINDOW_MINUTES=5
+XDR_POLL_SECONDS=30
+```
+
+### What happens on correlation
+
+```
+2+ sources fire in same window
+→ CORRELATED-ATTACK playbook triggered
+→ CRITICAL SOAR case created
+→ Slack alert: "AEGIS + IRIS detected simultaneous threats"
+→ Incident report saved with full signal breakdown per source
+→ Case marked CONTAINED
+```
+
+---
+
 ## SOAR — Security Orchestration, Automation & Response
 
 AEGIS includes a full SOAR layer that triggers automatically when the ensemble engine confirms a block. No manual intervention required.
@@ -563,6 +617,8 @@ AEGIS/
 │   ├── receiver_app.py        # K8s Flask receiver for PQC-signed alerts
 │   ├── receiver-deployment.yaml
 │   └── Dockerfile
+├── xdr/
+│   └── correlator.py          # Polls AEGIS + IRIS + AWS, fires SOAR on multi-vector correlation
 ├── soar/
 │   ├── playbook_engine.py     # Loads and executes response playbooks
 │   ├── case_manager.py        # Case lifecycle: OPEN → CONTAINED → RESOLVED + SLA
@@ -588,6 +644,7 @@ AEGIS/
 ## Roadmap
 
 - [x] SOAR — playbook engine, case management, IP enrichment, Slack alerting
+- [x] XDR — cross-domain correlation across AEGIS (network) + IRIS (AI agent) + AWS Scanner (cloud)
 - [ ] LSTM temporal detection for slow-burn attacks spread over hours
 - [ ] Istio service mesh with mTLS between all microservices
 - [ ] HashiCorp Vault for secrets and certificate management

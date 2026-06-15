@@ -1,0 +1,15 @@
+{
+  "name": "Multi-Vector Correlated Attack Response",
+  "description": "Triggered when 2+ security layers detect simultaneous threats — network + AI agent + cloud",
+  "triggers": ["CORRELATED-ATTACK"],
+  "severity": "CRITICAL",
+  "nist": { "function": "RESPOND", "category": "RS.AN-1", "description": "Notifications from detection systems analyzed" },
+  "steps": [
+    { "id": "enrich",      "action": "enrich_ip",      "description": "Query IP reputation via AbuseIPDB" },
+    { "id": "log",         "action": "audit_log",       "description": "Log correlated incident to SHA-256 audit ledger" },
+    { "id": "notify",      "action": "notify",          "description": "Send CRITICAL multi-vector alert to Slack" },
+    { "id": "nist_map",    "action": "nist_map",        "description": "Map to NIST CSF RS.AN-1" },
+    { "id": "report",      "action": "generate_report", "description": "Save correlated incident JSON report" },
+    { "id": "close_case",  "action": "update_case",     "status": "CONTAINED", "description": "Mark case as contained" }
+  ]
+}
