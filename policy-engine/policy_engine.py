@@ -1,9 +1,10 @@
 import hashlib
 import json
+import os
 import subprocess
 from datetime import datetime
 
-LEDGER_FILE = "/home/twi/AEGIS/policy-engine/audit_ledger.json"
+LEDGER_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audit_ledger.json")
 
 def load_ledger():
     try:

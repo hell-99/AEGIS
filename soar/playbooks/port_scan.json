@@ -1,0 +1,15 @@
+{
+  "name": "Port Scan Response",
+  "description": "Automated response for port scan reconnaissance activity",
+  "triggers": ["PORT SCAN"],
+  "severity": "MEDIUM",
+  "nist": { "function": "IDENTIFY", "category": "ID.RA-1", "description": "Asset vulnerability identified" },
+  "steps": [
+    { "id": "enrich",      "action": "enrich_ip",       "description": "Query IP reputation via AbuseIPDB" },
+    { "id": "log",         "action": "audit_log",        "description": "Log to SHA-256 audit ledger" },
+    { "id": "notify",      "action": "notify",           "description": "Send MEDIUM severity alert" },
+    { "id": "nist_map",    "action": "nist_map",         "description": "Map to NIST CSF ID.RA-1" },
+    { "id": "report",      "action": "generate_report",  "description": "Save incident JSON report" },
+    { "id": "close_case",  "action": "update_case",      "status": "INVESTIGATING", "description": "Mark case as under investigation" }
+  ]
+}
