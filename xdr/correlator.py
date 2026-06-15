@@ -19,6 +19,10 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
 from soar.config import BASE_DIR, SLACK_WEBHOOK_URL
+from soar.kill_chain import (
+    get_stage_for_aegis, get_stage_for_iris_signal,
+    progression_summary, get_highest_stage, STAGES
+)
 
 try:
     import requests
@@ -61,14 +65,16 @@ def _poll_aegis(window_start):
                 continue
             action = entry.get("action", "")
             if action in ("BLOCK", "ENSEMBLE-BLOCK", "SOAR-ESCALATE", "SOAR-IR"):
+                kc = get_stage_for_aegis(action)
                 signals.append({
-                    "source":    "AEGIS",
-                    "type":      "NETWORK_THREAT",
-                    "action":    action,
-                    "src_ip":    entry.get("src_ip", "unknown"),
-                    "detail":    entry.get("reason", ""),
-                    "timestamp": ts,
-                    "severity":  "CRITICAL" if "ENSEMBLE" in action else "HIGH",
+                    "source":     "AEGIS",
+                    "type":       "NETWORK_THREAT",
+                    "action":     action,
+                    "src_ip":     entry.get("src_ip", "unknown"),
+                    "detail":     entry.get("reason", ""),
+                    "timestamp":  ts,
+                    "severity":   "CRITICAL" if "ENSEMBLE" in action else "HIGH",
+                    "kill_chain": kc,
                 })
     except FileNotFoundError:
         pass
@@ -90,14 +96,18 @@ def _poll_aegis(window_start):
                     continue
                 if t < window_start:
                     continue
+                alert_type = "PORT SCAN" if "PORT SCAN" in line else \
+                             "SYN FLOOD" if "SYN FLOOD" in line else \
+                             "ICMP FLOOD" if "ICMP FLOOD" in line else "ML ANOMALY"
                 signals.append({
-                    "source":    "AEGIS",
-                    "type":      "IDS_ALERT",
-                    "action":    "ALERT",
-                    "src_ip":    _extract_ip(line),
-                    "detail":    line.strip(),
-                    "timestamp": ts_str,
-                    "severity":  "HIGH",
+                    "source":     "AEGIS",
+                    "type":       "IDS_ALERT",
+                    "action":     "ALERT",
+                    "src_ip":     _extract_ip(line),
+                    "detail":     line.strip(),
+                    "timestamp":  ts_str,
+                    "severity":   "HIGH",
+                    "kill_chain": get_stage_for_aegis(alert_type),
                 })
     except FileNotFoundError:
         pass
@@ -133,14 +143,15 @@ def _poll_iris(window_start):
                 if t < window_start:
                     continue
                 signals.append({
-                    "source":    "IRIS",
-                    "type":      "PROMPT_INJECTION",
-                    "action":    "DIVERGENCE_DETECTED",
-                    "src_ip":    None,
-                    "agent":     d.get("agent_role", "unknown"),
-                    "detail":    f"divergence_score={d.get('divergence_score', '?')} task={d.get('task', '?')}",
-                    "timestamp": ts_str,
-                    "severity":  "HIGH",
+                    "source":     "IRIS",
+                    "type":       "PROMPT_INJECTION",
+                    "action":     "DIVERGENCE_DETECTED",
+                    "src_ip":     None,
+                    "agent":      d.get("agent_role", "unknown"),
+                    "detail":     f"divergence_score={d.get('divergence_score', '?')} task={d.get('task', '?')}",
+                    "timestamp":  ts_str,
+                    "severity":   "HIGH",
+                    "kill_chain": get_stage_for_iris_signal("PROMPT_INJECTION"),
                 })
     except requests.exceptions.ConnectionError:
         print(f"\033[90m[AEGIS-XDR] IRIS API not reachable at {IRIS_API_URL} — skipping\033[0m")
@@ -163,14 +174,15 @@ def _poll_iris(window_start):
                 if t < window_start:
                     continue
                 signals.append({
-                    "source":    "IRIS",
-                    "type":      "AGENT_COLLUSION",
-                    "action":    "COLLUSION_DETECTED",
-                    "src_ip":    None,
-                    "agent":     f"{d.get('agent1_role')} + {d.get('agent2_role')}",
-                    "detail":    f"pattern={d.get('pattern_type')} severity={d.get('severity')}",
-                    "timestamp": ts_str,
-                    "severity":  d.get("severity", "HIGH"),
+                    "source":     "IRIS",
+                    "type":       "AGENT_COLLUSION",
+                    "action":     "COLLUSION_DETECTED",
+                    "src_ip":     None,
+                    "agent":      f"{d.get('agent1_role')} + {d.get('agent2_role')}",
+                    "detail":     f"pattern={d.get('pattern_type')} severity={d.get('severity')}",
+                    "timestamp":  ts_str,
+                    "severity":   d.get("severity", "HIGH"),
+                    "kill_chain": get_stage_for_iris_signal("AGENT_COLLUSION"),
                 })
     except Exception as e:
         print(f"\033[93m[AEGIS-XDR] IRIS collusion error: {e}\033[0m")
@@ -192,14 +204,15 @@ def _poll_iris(window_start):
                 if t < window_start:
                     continue
                 signals.append({
-                    "source":    "IRIS",
-                    "type":      "HIGH_RISK_TOOL_CALL",
-                    "action":    "BLOCKED",
-                    "src_ip":    None,
-                    "agent":     e.get("agent_role", "unknown"),
-                    "detail":    f"tool={e.get('tool_name')} risk={e.get('risk_score')} ttp={e.get('ttp_name')}",
-                    "timestamp": ts_str,
-                    "severity":  "CRITICAL" if (e.get("risk_score") or 0) >= 85 else "HIGH",
+                    "source":     "IRIS",
+                    "type":       "HIGH_RISK_TOOL_CALL",
+                    "action":     "BLOCKED",
+                    "src_ip":     None,
+                    "agent":      e.get("agent_role", "unknown"),
+                    "detail":     f"tool={e.get('tool_name')} risk={e.get('risk_score')} ttp={e.get('ttp_name')}",
+                    "timestamp":  ts_str,
+                    "severity":   "CRITICAL" if (e.get("risk_score") or 0) >= 85 else "HIGH",
+                    "kill_chain": get_stage_for_iris_signal("HIGH_RISK_TOOL_CALL"),
                 })
     except Exception as e:
         print(f"\033[93m[AEGIS-XDR] IRIS events error: {e}\033[0m")
@@ -294,12 +307,20 @@ def _fire_correlation(active_sources, by_source):
 
     details = _build_details(active_sources, by_source)
 
+    # Kill chain progression across all signals
+    all_signals = [s for events in by_source.values() for s in events]
+    stages_seen = [s["kill_chain"]["stage"] for s in all_signals if s.get("kill_chain", {}).get("stage", 0) > 0]
+    highest     = max(stages_seen) if stages_seen else 0
+    progression = progression_summary(stages_seen)
+
     print(f"\n\033[91m{'='*62}\033[0m")
     print(f"\033[91m[AEGIS-XDR] !! MULTI-VECTOR CORRELATED ATTACK DETECTED !!\033[0m")
-    print(f"\033[91m[AEGIS-XDR] Sources    : {' + '.join(active_sources)}\033[0m")
-    print(f"\033[91m[AEGIS-XDR] AEGIS      : {len(by_source.get('AEGIS', []))} network event(s)\033[0m")
-    print(f"\033[91m[AEGIS-XDR] IRIS       : {len(by_source.get('IRIS', []))} AI agent event(s)\033[0m")
-    print(f"\033[91m[AEGIS-XDR] AWS        : {len(by_source.get('AWS', []))} cloud finding(s)\033[0m")
+    print(f"\033[91m[AEGIS-XDR] Sources      : {' + '.join(active_sources)}\033[0m")
+    print(f"\033[91m[AEGIS-XDR] AEGIS        : {len(by_source.get('AEGIS', []))} network event(s)\033[0m")
+    print(f"\033[91m[AEGIS-XDR] IRIS         : {len(by_source.get('IRIS', []))} AI agent event(s)\033[0m")
+    print(f"\033[91m[AEGIS-XDR] AWS          : {len(by_source.get('AWS', []))} cloud finding(s)\033[0m")
+    print(f"\033[91m[AEGIS-XDR] Kill Chain   : {progression}\033[0m")
+    print(f"\033[91m[AEGIS-XDR] Highest Stage: Stage {highest} — {STAGES.get(highest, 'Unknown')}\033[0m")
     print(f"\033[91m{'='*62}\033[0m\n")
 
     # Fire SOAR playbook

@@ -23,7 +23,7 @@ def _case_path(case_id):
     return os.path.join(CASES_DIR, f"{case_id}.json")
 
 
-def create_case(incident_id, alert_type, src_ip, severity, playbook_name):
+def create_case(incident_id, alert_type, src_ip, severity, playbook_name, kill_chain=None):
     case_id = f"CASE-{incident_id}"
     sla = SEVERITY_SLA.get(severity, SEVERITY_SLA["MEDIUM"])
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -39,6 +39,7 @@ def create_case(incident_id, alert_type, src_ip, severity, playbook_name):
         "created_at":   now,
         "updated_at":   now,
         "sla_minutes":  sla,
+        "kill_chain":   kill_chain or {},
         "timeline": [
             {"timestamp": now, "status": "OPEN", "note": f"Case created — playbook: {playbook_name}"}
         ],
@@ -51,7 +52,9 @@ def create_case(incident_id, alert_type, src_ip, severity, playbook_name):
     with open(_case_path(case_id), "w") as f:
         json.dump(case, f, indent=2)
 
-    print(f"\033[96m[AEGIS-SOAR] Case created: {case_id} | {alert_type} | {severity} | SLA contain={sla['contain']}min\033[0m")
+    kc = kill_chain or {}
+    kc_str = f" | Kill Chain: Stage {kc.get('stage','?')} — {kc.get('name','?')}" if kc.get('stage') else ""
+    print(f"\033[96m[AEGIS-SOAR] Case created: {case_id} | {alert_type} | {severity} | SLA contain={sla['contain']}min{kc_str}\033[0m")
     return case_id
 
 
