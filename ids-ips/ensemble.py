@@ -7,10 +7,15 @@ import requests
 from datetime import datetime
 from collections import defaultdict
 import sys
-sys.path.append('/home/twi/AEGIS/policy-engine')
+
+_AEGIS_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(_AEGIS_BASE, "policy-engine"))
+sys.path.append(os.path.join(_AEGIS_BASE, "crypto"))
+sys.path.append(_AEGIS_BASE)
+
 from policy_engine import apply_block_rule, create_policy_entry
-sys.path.append('/home/twi/AEGIS/crypto')
 from pqc_keys import sign_message, load_public_key
+from incident_response import generate_incident_report
 
 VOTES_FILE   = "/tmp/aegis_votes.json"
 BLOCKED_FILE = "/tmp/aegis_blocked.json"
@@ -106,6 +111,13 @@ def cast_vote(detector: str, src_ip: str, verdict: str, reason: str):
                 f"voters={block_voters}"
             )
             apply_block_rule(src_ip, f"Ensemble: {confidence} confidence — {block_voters}")
+
+            # Trigger SOAR playbook asynchronously so it doesn't block the voting loop
+            threading.Thread(
+                target=generate_incident_report,
+                args=("ENSEMBLE-BLOCK", src_ip, f"confidence={confidence} voters={block_voters} reasons={reasons}"),
+                daemon=True
+            ).start()
 
             try:
                 payload = json.dumps({

@@ -10,20 +10,21 @@
 2. [Architecture](#architecture)
 3. [How The Pipeline Works](#how-the-pipeline-works)
 4. [Components](#components)
-5. [Model Performance](#model-performance)
-6. [Tech Stack](#tech-stack)
-7. [Prerequisites](#prerequisites)
-8. [Running AEGIS](#running-aegis)
-9. [Demo Guide](#demo-guide)
-10. [Threat Level Behavior](#threat-level-behavior)
-11. [Self-Healing](#self-healing)
-12. [Reset for Fresh Demo](#reset-for-fresh-demo)
-13. [API Endpoints](#api-endpoints)
-14. [What Makes AEGIS Different](#what-makes-aegis-different)
-15. [Measured Performance](#measured-performance)
-16. [NIST CSF Alignment](#nist-csf-alignment)
-17. [Project Structure](#project-structure)
-18. [Roadmap](#roadmap)
+5. [SOAR — Security Orchestration, Automation & Response](#soar--security-orchestration-automation--response)
+6. [Model Performance](#model-performance)
+7. [Tech Stack](#tech-stack)
+8. [Prerequisites](#prerequisites)
+9. [Running AEGIS](#running-aegis)
+10. [Demo Guide](#demo-guide)
+11. [Threat Level Behavior](#threat-level-behavior)
+12. [Self-Healing](#self-healing)
+13. [Reset for Fresh Demo](#reset-for-fresh-demo)
+14. [API Endpoints](#api-endpoints)
+15. [What Makes AEGIS Different](#what-makes-aegis-different)
+16. [Measured Performance](#measured-performance)
+17. [NIST CSF Alignment](#nist-csf-alignment)
+18. [Project Structure](#project-structure)
+19. [Roadmap](#roadmap)
 
 ---
 
@@ -55,6 +56,12 @@ Modern organizations run 5–10 disconnected security tools. None talk to each o
 │   Majority (2/3) = MEDIUM confidence BLOCK                       │
 │   Unanimous (3/3) = HIGH confidence BLOCK                        │
 │   Signed with Dilithium3 → Verified in Kubernetes pod            │
+├──────────────────────────────────────────────────────────────────┤
+│              SOAR — SECURITY ORCHESTRATION LAYER                  │
+│  Playbook Engine  │  Case Manager   │  IP Enrichment  │ Notifier  │
+│  ddos.json        │  OPEN→CONTAINED │  AbuseIPDB      │ Slack     │
+│  port_scan.json   │  SLA Tracking   │  Local Fallback │ Console   │
+│  ensemble_block   │  Full Lifecycle │  Reputation     │ Webhook   │
 ├──────────────────────────────────────────────────────────────────┤
 │                    SELF-HEALING WATCHDOG                          │
 │         Component Recovery + Adaptive Threat Escalation          │
@@ -112,7 +119,12 @@ Attack occurs on Mininet network
 → SHA-256 hash chained into tamper-evident audit ledger
 → Watchdog monitors all components — restarts any that crash
 → Adaptive escalation blocks entire subnet after repeat attacks
+→ SOAR playbook selected by threat type (DDoS / Port Scan / Ensemble Block)
+→ Case created with severity SLA (CRITICAL=5min, HIGH=15min, MEDIUM=60min)
+→ IP reputation queried via AbuseIPDB enrichment
+→ Slack alert fired to #aegis-alerts with color-coded severity
 → Incident report auto-generated with NIST CSF mapping
+→ Case status updated: OPEN → CONTAINED / INVESTIGATING
 → Flask API exposes everything via REST
 → SOC Dashboard visualizes live — refreshes every 3 seconds
 → Threat level auto-resets to LOW after 30 seconds of no activity
@@ -181,13 +193,79 @@ Three layers of autonomous recovery:
 - Real communication — ensemble POSTs signed alerts to K8s pod, pod verifies and stores
 
 ### 11. Incident Response (`incident-response/incident_response.py`)
-Automated 3-step response: Isolate → Audit → Map. Auto-generates JSON reports. Maps every incident to NIST CSF automatically.
+Entry point for the SOAR layer. Receives alert type, source IP, and details from the ensemble engine — delegates execution to the playbook engine, which orchestrates all response steps automatically.
 
 ### 12. REST API (`flask_api.py`)
 Serves all system data to the dashboard and external tools.
 
 ### 13. SOC Dashboard (`soc-dashboard/dashboard.html`)
 Live cyberpunk-aesthetic dashboard — intrusion feed, ensemble voting panel, Kubernetes bridge, audit ledger with SHA-256 hashes, component health monitor, chain integrity ring, dynamic threat level. Refreshes every 3 seconds.
+
+---
+
+## SOAR — Security Orchestration, Automation & Response
+
+AEGIS includes a full SOAR layer that triggers automatically when the ensemble engine confirms a block. No manual intervention required.
+
+### How it works
+
+```
+Ensemble confirms block
+→ incident_response.py triggered (async thread — doesn't stall voting)
+→ Playbook selected by threat type
+→ Case created with SLA clock started
+→ Steps executed in order: enrich → block → log → notify → NIST map → report → update case
+```
+
+### Playbooks
+
+| Playbook | Triggers | Severity | Steps |
+|---|---|---|---|
+| `ddos.json` | ICMP FLOOD, SYN FLOOD, UDP FLOOD | HIGH | 7 |
+| `port_scan.json` | PORT SCAN | MEDIUM | 6 |
+| `ensemble_block.json` | ENSEMBLE-BLOCK | CRITICAL | 7 + subnet escalation |
+| `generic.json` | Any unclassified event | MEDIUM | 6 |
+
+### Case Lifecycle
+
+Every incident gets a case with full SLA tracking:
+
+```
+OPEN → INVESTIGATING → CONTAINED → RESOLVED
+```
+
+| Severity | Time-to-Contain SLA | Time-to-Resolve SLA |
+|---|---|---|
+| CRITICAL | 5 minutes | 30 minutes |
+| HIGH | 15 minutes | 60 minutes |
+| MEDIUM | 60 minutes | 4 hours |
+
+### IP Enrichment
+
+Each playbook queries the source IP against AbuseIPDB before deciding response:
+- **Known attacker (score ≥ 50)** → tagged and flagged in Slack alert
+- **Private/internal IP** → local heuristic, no external call
+- **No API key** → graceful fallback, enrichment skipped
+
+### Slack Alerts
+
+Color-coded alerts sent to `#aegis-alerts` on every incident:
+
+```
+🔴 CRITICAL — ENSEMBLE-BLOCK on 10.0.0.3
+   Enrichment: score=87 | country=CN | reports=142
+   Steps: enrich → log → notify → nist_map → report → CONTAINED
+```
+
+To enable: `export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."`
+
+### Running a SOAR test
+
+```bash
+python3 incident-response/incident_response.py
+```
+
+Output: 3 playbooks execute, 3 Slack alerts fire, 3 cases created, 3 incident JSON reports saved.
 
 ---
 
@@ -227,6 +305,9 @@ Training data: 2,520,751 real network flows
 | API | Flask, Flask-CORS | REST interface |
 | Frontend | HTML5, CSS3, JavaScript | SOC dashboard |
 | Compliance | NIST CSF | Regulatory mapping |
+| SOAR | Custom playbook engine | Orchestration, automation, response |
+| Enrichment | AbuseIPDB API | IP reputation lookup |
+| Alerting | Slack Webhooks | Real-time SOC notifications |
 
 ---
 
@@ -482,11 +563,23 @@ AEGIS/
 │   ├── receiver_app.py        # K8s Flask receiver for PQC-signed alerts
 │   ├── receiver-deployment.yaml
 │   └── Dockerfile
+├── soar/
+│   ├── playbook_engine.py     # Loads and executes response playbooks
+│   ├── case_manager.py        # Case lifecycle: OPEN → CONTAINED → RESOLVED + SLA
+│   ├── enrichment.py          # IP reputation via AbuseIPDB with local fallback
+│   ├── notifier.py            # Slack webhook + console alerts
+│   ├── config.py              # Paths, env vars, auto-loads .env
+│   └── playbooks/
+│       ├── ddos.json          # ICMP/SYN/UDP flood response (HIGH, 7 steps)
+│       ├── port_scan.json     # Port scan response (MEDIUM, 6 steps)
+│       ├── ensemble_block.json# Consensus block response (CRITICAL, 7 steps)
+│       └── generic.json       # Catch-all fallback playbook
 ├── compliance/                # NIST CSF compliance scoring and reports
 ├── soc-dashboard/
 │   └── dashboard.html         # Live SOC dashboard
 ├── flask_api.py               # REST API (localhost:5000)
 ├── reset.sh                   # One-command demo reset
+├── .env                       # Local secrets — never committed (in .gitignore)
 └── README.md
 ```
 
@@ -494,6 +587,7 @@ AEGIS/
 
 ## Roadmap
 
+- [x] SOAR — playbook engine, case management, IP enrichment, Slack alerting
 - [ ] LSTM temporal detection for slow-burn attacks spread over hours
 - [ ] Istio service mesh with mTLS between all microservices
 - [ ] HashiCorp Vault for secrets and certificate management

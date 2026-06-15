@@ -1,0 +1,16 @@
+{
+  "name": "DDoS Flood Response",
+  "description": "Automated response for ICMP, SYN, and UDP flood attacks",
+  "triggers": ["ICMP FLOOD", "SYN FLOOD", "UDP FLOOD"],
+  "severity": "HIGH",
+  "nist": { "function": "RESPOND", "category": "RS.RP-1", "description": "Response plan executed" },
+  "steps": [
+    { "id": "enrich",      "action": "enrich_ip",       "description": "Query IP reputation via AbuseIPDB" },
+    { "id": "isolate",     "action": "block_ip",         "description": "Apply iptables DROP rule" },
+    { "id": "log",         "action": "audit_log",        "description": "Log to SHA-256 audit ledger" },
+    { "id": "notify",      "action": "notify",           "description": "Send HIGH severity alert" },
+    { "id": "nist_map",    "action": "nist_map",         "description": "Map to NIST CSF RS.RP-1" },
+    { "id": "report",      "action": "generate_report",  "description": "Save incident JSON report" },
+    { "id": "close_case",  "action": "update_case",      "status": "CONTAINED", "description": "Mark case as contained" }
+  ]
+}
