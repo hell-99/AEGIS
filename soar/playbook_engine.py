@@ -5,6 +5,7 @@ from datetime import datetime
 
 from soar.config import PLAYBOOKS_DIR, INCIDENT_DIR, BASE_DIR
 from soar import case_manager, enrichment, notifier
+from soar.kill_chain import get_stage_for_aegis
 
 import sys
 sys.path.append(os.path.join(BASE_DIR, "policy-engine"))
@@ -40,10 +41,12 @@ def execute(alert_type, src_ip, details, incident_id):
 
     print(f"\n\033[96m[AEGIS-SOAR] ── Playbook: {playbook['name']} ───────────────\033[0m")
     print(f"\033[96m[AEGIS-SOAR] Incident : {incident_id}\033[0m")
+    kc = get_stage_for_aegis(alert_type)
     print(f"\033[96m[AEGIS-SOAR] Threat   : {alert_type} | SRC: {src_ip} | Severity: {severity}\033[0m")
+    print(f"\033[96m[AEGIS-SOAR] Kill Chain: Stage {kc['stage']} — {kc['name']} | Next: {kc.get('next', {}).get('prediction', 'N/A')}\033[0m")
     print(f"\033[96m[AEGIS-SOAR] Steps    : {len(playbook['steps'])}\033[0m\n")
 
-    case_id = case_manager.create_case(incident_id, alert_type, src_ip, severity, playbook["name"])
+    case_id = case_manager.create_case(incident_id, alert_type, src_ip, severity, playbook["name"], kill_chain=kc)
 
     ctx = {
         "incident_id": incident_id,
@@ -53,6 +56,7 @@ def execute(alert_type, src_ip, details, incident_id):
         "details":     details,
         "severity":    severity,
         "playbook":    playbook,
+        "kill_chain":  kc,
         "enrichment":  None,
         "steps_done":  [],
         "report":      {},
@@ -150,6 +154,7 @@ def _escalate(ctx):
 
 
 def _build_report(ctx):
+    kc = ctx["kill_chain"]
     return {
         "incident_id":    ctx["incident_id"],
         "case_id":        ctx["case_id"],
@@ -159,6 +164,12 @@ def _build_report(ctx):
         "details":        ctx["details"],
         "severity":       ctx["severity"],
         "playbook":       ctx["playbook"]["name"],
+        "kill_chain": {
+            "stage":      kc.get("stage"),
+            "phase":      kc.get("name"),
+            "rationale":  kc.get("rationale"),
+            "next_stage": kc.get("next", {}).get("prediction"),
+        },
         "nist_csf":       ctx["report"].get("nist_csf", {}),
         "enrichment":     ctx["enrichment"],
         "steps_executed": ctx["steps_done"],

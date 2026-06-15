@@ -10,21 +10,23 @@
 2. [Architecture](#architecture)
 3. [How The Pipeline Works](#how-the-pipeline-works)
 4. [Components](#components)
-5. [SOAR — Security Orchestration, Automation & Response](#soar--security-orchestration-automation--response)
-6. [Model Performance](#model-performance)
-7. [Tech Stack](#tech-stack)
-8. [Prerequisites](#prerequisites)
-9. [Running AEGIS](#running-aegis)
-10. [Demo Guide](#demo-guide)
-11. [Threat Level Behavior](#threat-level-behavior)
-12. [Self-Healing](#self-healing)
-13. [Reset for Fresh Demo](#reset-for-fresh-demo)
-14. [API Endpoints](#api-endpoints)
-15. [What Makes AEGIS Different](#what-makes-aegis-different)
-16. [Measured Performance](#measured-performance)
-17. [NIST CSF Alignment](#nist-csf-alignment)
-18. [Project Structure](#project-structure)
-19. [Roadmap](#roadmap)
+5. [Cyber Kill Chain Mapping](#cyber-kill-chain-mapping)
+6. [XDR — Extended Detection & Response](#xdr--extended-detection--response)
+7. [SOAR — Security Orchestration, Automation & Response](#soar--security-orchestration-automation--response)
+8. [Model Performance](#model-performance)
+9. [Tech Stack](#tech-stack)
+10. [Prerequisites](#prerequisites)
+11. [Running AEGIS](#running-aegis)
+12. [Demo Guide](#demo-guide)
+13. [Threat Level Behavior](#threat-level-behavior)
+14. [Self-Healing](#self-healing)
+15. [Reset for Fresh Demo](#reset-for-fresh-demo)
+16. [API Endpoints](#api-endpoints)
+17. [What Makes AEGIS Different](#what-makes-aegis-different)
+18. [Measured Performance](#measured-performance)
+19. [NIST CSF Alignment](#nist-csf-alignment)
+20. [Project Structure](#project-structure)
+21. [Roadmap](#roadmap)
 
 ---
 
@@ -59,9 +61,10 @@ Modern organizations run 5–10 disconnected security tools. None talk to each o
 ├──────────────────────────────────────────────────────────────────┤
 │              SOAR — SECURITY ORCHESTRATION LAYER                  │
 │  Playbook Engine  │  Case Manager   │  IP Enrichment  │ Notifier  │
-│  ddos.json        │  OPEN→CONTAINED │  AbuseIPDB      │ Slack     │
-│  port_scan.json   │  SLA Tracking   │  Local Fallback │ Console   │
-│  ensemble_block   │  Full Lifecycle │  Reputation     │ Webhook   │
+│  Kill Chain Map   │  OPEN→CONTAINED │  AbuseIPDB      │ Slack     │
+│  ddos.json        │  SLA Tracking   │  Local Fallback │ Console   │
+│  port_scan.json   │  Full Lifecycle │  Reputation     │ Webhook   │
+│  ensemble_block   │  Kill Chain Tag │                 │           │
 ├──────────────────────────────────────────────────────────────────┤
 │                    SELF-HEALING WATCHDOG                          │
 │         Component Recovery + Adaptive Threat Escalation          │
@@ -122,8 +125,9 @@ Attack occurs on Mininet network
 → SOAR playbook selected by threat type (DDoS / Port Scan / Ensemble Block)
 → Case created with severity SLA (CRITICAL=5min, HIGH=15min, MEDIUM=60min)
 → IP reputation queried via AbuseIPDB enrichment
+→ Kill chain stage mapped and next-stage prediction attached to case
 → Slack alert fired to #aegis-alerts with color-coded severity
-→ Incident report auto-generated with NIST CSF mapping
+→ Incident report auto-generated with NIST CSF mapping + kill chain object
 → Case status updated: OPEN → CONTAINED / INVESTIGATING
 → Flask API exposes everything via REST
 → SOC Dashboard visualizes live — refreshes every 3 seconds
@@ -200,6 +204,74 @@ Serves all system data to the dashboard and external tools.
 
 ### 13. SOC Dashboard (`soc-dashboard/dashboard.html`)
 Live cyberpunk-aesthetic dashboard — intrusion feed, ensemble voting panel, Kubernetes bridge, audit ledger with SHA-256 hashes, component health monitor, chain integrity ring, dynamic threat level. Refreshes every 3 seconds.
+
+---
+
+## Cyber Kill Chain Mapping
+
+AEGIS maps every detected threat to its stage in the Lockheed Martin Cyber Kill Chain framework — giving defenders immediate context on where an attacker is in their campaign and what to expect next.
+
+### The 7 Stages
+
+| Stage | Name | AEGIS Threat | IRIS Signal |
+|---|---|---|---|
+| 1 | Reconnaissance | PORT SCAN | — |
+| 2 | Weaponization | — | — |
+| 3 | Delivery | ICMP FLOOD, SYN FLOOD, UDP FLOOD | Prompt Injection |
+| 4 | Exploitation | ML ANOMALY, ENSEMBLE-BLOCK | Lateral Movement / Adversarial Data |
+| 5 | Installation | — | HIGH_RISK_TOOL_CALL, Permission Violation |
+| 6 | Command & Control | ENTROPY HIGH, CORRELATED-ATTACK | AGENT_COLLUSION, Tool Misuse |
+| 7 | Actions on Objectives | SOAR-ESCALATE | Data Exfiltration |
+
+### How it works
+
+Every threat is automatically classified at detection time — no manual labelling required.
+
+**SOAR playbooks** print the kill chain stage alongside each incident:
+```
+[AEGIS-SOAR] Kill Chain: Stage 4 — Exploitation | Next: Expect Installation (foothold via tool misuse or persistence)
+```
+
+**XDR correlator** computes attacker progression across all signals in the correlation window:
+```
+[AEGIS-XDR] Kill Chain   : Stage 1 (Reconnaissance) → Stage 4 (Exploitation)  [skipped stages: [2, 3] — sophisticated attacker]
+[AEGIS-XDR] Highest Stage: Stage 4 — Exploitation
+```
+
+**Case files** store the kill chain object for every incident:
+```json
+"kill_chain": {
+  "stage": 4,
+  "phase": "Exploitation",
+  "rationale": "Multi-detector consensus — active exploitation",
+  "next_stage": "Expect Installation (foothold via tool misuse or persistence)"
+}
+```
+
+### MITRE ATLAS integration (IRIS TTPs)
+
+IRIS maps its 5 AI-specific TTPs directly to kill chain stages:
+
+| MITRE ATLAS TTP | ID | Kill Chain Stage |
+|---|---|---|
+| LLM Prompt Injection | AML.T0006 | Stage 3 — Delivery |
+| Craft Adversarial Data | AML.T0043 | Stage 4 — Exploitation |
+| ML Model Inference API Access | AML.T0040 | Stage 5 — Installation |
+| LLM Plugin Compromise | AML.T0051 | Stage 6 — Command & Control |
+| Exfiltration via ML Inference | AML.T0025 | Stage 7 — Actions on Objectives |
+
+### Next-stage prediction
+
+At every detection, AEGIS predicts what the attacker will attempt next:
+
+| Current Stage | Prediction |
+|---|---|
+| Reconnaissance | Expect Delivery attempt (SYN/ICMP flood or prompt injection) |
+| Delivery | Expect Exploitation (ensemble block or divergence detection) |
+| Exploitation | Expect Installation (foothold via tool misuse or persistence) |
+| Installation | Expect C2 (encrypted tunnel or cross-agent coordination) |
+| C2 | Expect Actions on Objectives (data exfiltration or destruction) |
+| Actions on Objectives | Attacker at final stage — immediate containment required |
 
 ---
 
@@ -360,6 +432,7 @@ Training data: 2,520,751 real network flows
 | Frontend | HTML5, CSS3, JavaScript | SOC dashboard |
 | Compliance | NIST CSF | Regulatory mapping |
 | SOAR | Custom playbook engine | Orchestration, automation, response |
+| Kill Chain | Lockheed Martin 7-stage model | Attack campaign stage classification |
 | Enrichment | AbuseIPDB API | IP reputation lookup |
 | Alerting | Slack Webhooks | Real-time SOC notifications |
 
@@ -622,6 +695,7 @@ AEGIS/
 ├── soar/
 │   ├── playbook_engine.py     # Loads and executes response playbooks
 │   ├── case_manager.py        # Case lifecycle: OPEN → CONTAINED → RESOLVED + SLA
+│   ├── kill_chain.py          # Kill chain stage mapping (AEGIS threats + IRIS TTPs)
 │   ├── enrichment.py          # IP reputation via AbuseIPDB with local fallback
 │   ├── notifier.py            # Slack webhook + console alerts
 │   ├── config.py              # Paths, env vars, auto-loads .env
@@ -629,6 +703,7 @@ AEGIS/
 │       ├── ddos.json          # ICMP/SYN/UDP flood response (HIGH, 7 steps)
 │       ├── port_scan.json     # Port scan response (MEDIUM, 6 steps)
 │       ├── ensemble_block.json# Consensus block response (CRITICAL, 7 steps)
+│       ├── correlated_attack.json # XDR multi-vector response (CRITICAL, 6 steps)
 │       └── generic.json       # Catch-all fallback playbook
 ├── compliance/                # NIST CSF compliance scoring and reports
 ├── soc-dashboard/
@@ -645,6 +720,7 @@ AEGIS/
 
 - [x] SOAR — playbook engine, case management, IP enrichment, Slack alerting
 - [x] XDR — cross-domain correlation across AEGIS (network) + IRIS (AI agent) + AWS Scanner (cloud)
+- [x] Cyber Kill Chain — full stage mapping for all AEGIS threats and IRIS MITRE ATLAS TTPs with next-stage prediction
 - [ ] LSTM temporal detection for slow-burn attacks spread over hours
 - [ ] Istio service mesh with mTLS between all microservices
 - [ ] HashiCorp Vault for secrets and certificate management
